@@ -1,15 +1,25 @@
 #!/usr/bin/env python
 
-from scapy.all import *
 import socket
 
 def ackattack(host):
-	for time in range(0,255):
-		port=RandNum(1024,65535)
-		ack = IP(dst=host, ttl=time)/TCP(sport=port, dport=80, flags="A")
-		send(ack)
+	from scapy.all import *
 
-MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: thinkshop.cn" + "\x0d\x0a\x0d\x0a"
+        loggin.getLogger("scapy.runtime").setLevel(logging.ERROR)
+        ipaddr = socket.gethostbyname(host)
+        port = RandNum(1024,65535)
+
+        ack = IP(dst=ipaddr, ttl=(1,255))/TCP(sport=port, dport=80, flags="A")
+        ans,unans = sr(ack, timeout=4)
+
+        for snd,rcv in ans:
+                endpoint = isinstance(rcv.payload, TCP)
+                print snd.ttl, rcv.src, endpoint
+                if endpoint:
+                        break
+
+
+MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: %s" + "\x0d\x0a\x0d\x0a"
 hostnames = ["thinkshop.cn"]
 port = 80
 
@@ -23,7 +33,7 @@ for host in hostnames:
 		s.connect((host, port))
 	except socket.timeout:
 		print "connection to " + host + " has timedout moving on"
-	s.send(MESSAGE % ("/"))
+	s.send(MESSAGE % ("/", host))
 	
 	try:
 		response = s.recv(1024)
@@ -37,7 +47,7 @@ for host in hostnames:
 	if response.find("200 OK") != -1:
 		# http://en.wikipedia.org/wiki/List_of_blacklisted_keywords_in_the_People%27s_Republic_of_China
 		# tibetalk
-		s.send(MESSAGE % ("/tibetalk") )
+		s.send(MESSAGE % ("/tibetalk", host) )
 
 		try:
 			response = s.recv(1024)
