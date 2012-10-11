@@ -16,5 +16,16 @@ def ackattack(host):
 		if endpoint:
 			break
 
+host = "thinkshop.cn"
+port = 80
+MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: %s" + "\x0d\x0a\x0d\x0a"
 
-ackattack("thinkshop.cn")
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(5)
+try:
+	s.connect((host, port))
+except socket.timeout:
+        print "connection to " + host + " has timedout moving on"
+s.send(MESSAGE % ("/", host))
+response = s.recv(1024)
+print response
