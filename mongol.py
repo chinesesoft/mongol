@@ -30,10 +30,10 @@ def ackattack(host):
 
 
 MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: %s" + "\x0d\x0a\x0d\x0a"
-#hostnames = ["thinkshop.cn"]
-#hostnames = ["www.zju.edu.cn"]
-hostnames = ["pku.edu.cn"]
+hostnames = ["thinkshop.cn", "www.zju.edu.cn", "pku.edu.cn"]
 port = 80
+
+firewalls = []
 
 for host in hostnames:
 	# first we create a real handshake and send the censored term
@@ -42,12 +42,14 @@ for host in hostnames:
 	# why 5 seconds?  idk you got a better idea?
 	s.settimeout(5)
 
+	# make sure we can resolve the host
 	try:
 		ipaddr = socket.gethostbyname(host)
 	except socket.gaierror:
 		print "Could not resolve " + host
 		continue
 
+	# make sure the host is up
 	try:
 		s.connect((ipaddr, port))
 	except socket.timeout:
@@ -65,22 +67,21 @@ for host in hostnames:
 
 	s.close()
 
+	# TODO: implement other valid response codes, this is a hack.
 	if response.find("200 OK") != -1:
 		# http://en.wikipedia.org/wiki/List_of_blacklisted_keywords_in_the_People%27s_Republic_of_China
 		# tibetalk
+
+		# get a non blocking ACK trace.
 		noFWprint, noFWlist = ackattack(ipaddr)
 
-		# possibly a delay from the IDS to reaction time
-
-		print "Sending stimulus"		
-		
+		print "Sending stimulus"				
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
  	               s.connect((ipaddr, port))
  	        except socket.timeout:
          	       	print "connection to " + host + " has timedout moving on"
 			continue
-
 		s.send(MESSAGE % ("/tibetalk", host) )
 
 		# possibly a delay from the IDS to reaction time
@@ -90,6 +91,8 @@ for host in hostnames:
 			response = s.recv(1024)
 		except socket.error:
 			print "Found a filter\n\n"
+
+			# get a firewalled trace
 			FWprint, FWlist = ackattack(ipaddr)
 
 			if debug:
@@ -102,11 +105,13 @@ for host in hostnames:
 			filterIP = FWlist[-2]
 			# we only check the first 3 octecs because of variation in the routers depending on
 			# firewall status
-			
 			# fuck regex's
 			shortip = filterIP.split(".")
 			shortip = "%s.%s.%s." % (shortip[0], shortip[1], shortip[2])
 			print "shortip: " + shortip
+
+			# add the firewall's IP to the list to be written out
+			firewalls.append(filterIP)
 
 			if shortip in noFWlist:
 				hopsdiff = noFWlist.index(filterIP) - FWlist.index(filterIP)
@@ -123,4 +128,10 @@ for host in hostnames:
 	else:
 		print "Bad response code from " + host
 		continue
+	s.close()
 
+# output the ip's to a file.
+fd = open("output.txt", "w")
+for ip in firewalls:
+	fd.write(ip + "\n")
+fd.close()
