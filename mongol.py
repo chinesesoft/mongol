@@ -118,7 +118,7 @@ for host in hostnames:
 			print "shortip: " + shortip
 
 			# add the firewall's IP to the list to be written out if it does not already exist
-			if filterIP is not in firewalls:
+			if filterIP not in firewalls:
 				firewalls.append(filterIP)
 
 			if shortip in noFWlist:
