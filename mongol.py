@@ -3,6 +3,7 @@
 import socket
 import logging
 import time
+
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
 
@@ -12,8 +13,11 @@ debug = True
 def ackattack(host):
         port = RandNum(1024,65535)
 
+	# build a simple ACK packet, using a range (1,255) for the ttl creates 255 packets
         ack = IP(dst=host, ttl=(1,255))/TCP(sport=port, dport=80, flags="A")
-        ans,unans = sr(ack, timeout=4)
+        
+	# send packets and collect answers
+	ans,unans = sr(ack, timeout=4)
 
 	iplist = []
 	retdata = ""
@@ -30,7 +34,10 @@ def ackattack(host):
 
 
 MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: %s" + "\x0d\x0a\x0d\x0a"
-hostnames = ["thinkshop.cn", "www.zju.edu.cn", "pku.edu.cn"]
+
+# TODO: read from file?
+# put your hostnames here.
+hostnames = ["thinkshop.cn", "www.zju.edu.cn", "pku.edu.cn", "sjtu.edu.cn", "fudan.edu.cn", "www.nju.edu.cn", "whu.edu.cn", "sdu.edu.cn", "globaltimes.cn", "ebeijing.gov.cn", "chinaview.cn"]
 port = 80
 
 firewalls = []
@@ -110,8 +117,9 @@ for host in hostnames:
 			shortip = "%s.%s.%s." % (shortip[0], shortip[1], shortip[2])
 			print "shortip: " + shortip
 
-			# add the firewall's IP to the list to be written out
-			firewalls.append(filterIP)
+			# add the firewall's IP to the list to be written out if it does not already exist
+			if filterIP is not in firewalls:
+				firewalls.append(filterIP)
 
 			if shortip in noFWlist:
 				hopsdiff = noFWlist.index(filterIP) - FWlist.index(filterIP)
