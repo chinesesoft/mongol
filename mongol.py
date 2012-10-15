@@ -97,6 +97,9 @@ for host in hostnames:
 		try:
 			response = s.recv(1024)
 		except socket.error:
+			# this is the largest amount of control flow I have ever used a 
+			# exception for.
+
 			print "Found a filter\n\n"
 
 			# get a firewalled trace
