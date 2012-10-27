@@ -2,12 +2,24 @@
 
 import socket
 import logging
-import time
+import sys, getopt, time
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
 
+# a few silly globals
 debug = True
+MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: %s" + "\x0d\x0a\x0d\x0a"
+port = 80
+inputfile = ""
+outputfile = "output.txt"
+
+
+def usage():
+	print "Mongol.py -- a tool for pin pointing the ip addresses\n\t of the great firewall of china keyword blocking devices"
+	print ""
+	print "usage: python mongol.py -i hostslist.txt -o outputfilename.txt"
+	print "-i: required newline seperated list of hosts to scan"
 
 # Basically a slightly modified traceroute
 def ackattack(host):
@@ -17,7 +29,7 @@ def ackattack(host):
         ack = IP(dst=host, ttl=(1,255))/TCP(sport=port, dport=80, flags="A")
         
 	# send packets and collect answers
-	ans,unans = sr(ack, timeout=4)
+	ans,unans = sr(ack, timeout=4, verbose=1)
 
 	iplist = []
 	retdata = ""
@@ -33,13 +45,34 @@ def ackattack(host):
 	return retdata, iplist
 
 
-MESSAGE = "GET %s HTTP/1.1" + "\x0d\x0a" + "Host: %s" + "\x0d\x0a\x0d\x0a"
+# parse arguments
+try:
+	opts, args = getopt.getopt(sys.argv[1:],"hi:o:")
+except getopt.GetoptError:
+	usage()
+	sys.exit(1)
+for opt, arg in opts:
+	if opt == "-h":
+		usage()
+		sys.exit(0)
+	elif opt == "-i":
+		inputfile = arg
+	elif opt == "-o":
+		outputfile = arg
 
-# TODO: read from file?
-# put your hostnames here.
-hostnames = ["thinkshop.cn", "www.zju.edu.cn", "pku.edu.cn", "sjtu.edu.cn", "fudan.edu.cn", "www.nju.edu.cn", "whu.edu.cn", "sdu.edu.cn", "globaltimes.cn", "ebeijing.gov.cn", "chinaview.cn"]
-port = 80
+# read the hostnames in from the intputfile
+if not inputfile:
+	usage()
+	print "ERROR: Please select an input file of hostnames, one hostname per line"
+	sys.exit(1)
 
+hostnames = []
+fd = open(inputfile, "r")
+hosts = fd.readlines()
+for addr in hosts:
+	hostnames.append(addr.rstrip("\n"))
+
+# empty list of found firewalls
 firewalls = []
 
 for host in hostnames:
@@ -60,7 +93,8 @@ for host in hostnames:
 	try:
 		s.connect((ipaddr, port))
 	except socket.timeout:
-		print "connection to " + host + " has timedout moving on"
+		print "connection to " + host + " has timed out moving on"
+		continue 
 	s.send(MESSAGE % ("/", host))
 	
 	try:
@@ -75,13 +109,13 @@ for host in hostnames:
 	s.close()
 
 	# TODO: implement other valid response codes, this is a hack.
-	if response.find("200 OK") != -1:
-		# http://en.wikipedia.org/wiki/List_of_blacklisted_keywords_in_the_People%27s_Republic_of_China
-		# tibetalk
+	if response.find("200 OK") != -1 or response.find("302 Redirect") != -1 or response.find("401 Unauthorized") != -1:
 
-		# get a non blocking ACK trace.
+		# get a non firewalled ACK trace.
 		noFWprint, noFWlist = ackattack(ipaddr)
 
+		# http://en.wikipedia.org/wiki/List_of_blacklisted_keywords_in_the_People%27s_Republic_of_China
+                # tibetalk
 		print "Sending stimulus"				
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
@@ -93,13 +127,10 @@ for host in hostnames:
 
 		# possibly a delay from the IDS to reaction time
 		time.sleep(3)
-
 		try:
 			response = s.recv(1024)
-		except socket.error:
-			# this is the largest amount of control flow I have ever used a 
-			# exception for.
 
+		except socket.error:
 			print "Found a filter\n\n"
 
 			# get a firewalled trace
@@ -126,23 +157,23 @@ for host in hostnames:
 
 			if shortip in noFWlist:
 				hopsdiff = noFWlist.index(filterIP) - FWlist.index(filterIP)
-				print "Guess [strong]: " + filterIP
+				print "Guess: " + filterIP
 				print "IP block: " + shortip
 				print "Hops diff:    " + str(hopsdiff)
 			else:
-				print "Guess [weak]: " + filterIP
+				print "Guess: " + filterIP
 
 		else:
-			#print response
 			print "Appears not to be blocking"
 
 	else:
 		print "Bad response code from " + host
+		#print response
 		continue
 	s.close()
 
 # output the ip's to a file.
-fd = open("output.txt", "w")
+fd = open(outputfile, "w")
 for ip in firewalls:
 	fd.write(ip + "\n")
 fd.close()
