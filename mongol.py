@@ -95,7 +95,7 @@ for host in hostnames:
 	except socket.timeout:
 		print "connection to " + host + " has timed out moving on"
 		continue 
-	except socket.errror:
+	except socket.error:
 		print "connection failed, moving on"
 		continue
 	s.send(MESSAGE % ("/", host))
